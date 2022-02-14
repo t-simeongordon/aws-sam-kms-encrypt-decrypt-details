@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  aws-sam-kms-details
+
+Resources:
+  GetSecureStringFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: getSecureString/index.getSecureString
+      Policies:
+      - Statement:
+        - Sid: SSMDescribeParametersPolicy
+          Effect: Allow
+          Action:
+          - ssm:DescribeParameters
+          Resource: '*'
+        - Sid: SSMGetParameterPolicy
+          Effect: Allow
+          Action:
+          - ssm:GetParameters
+          - ssm:GetParameter
+          Resource: '*'      
+      Runtime: nodejs14.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          SSM_NAMES: /Project/Service/Names
+          SSM_ENDPOINT: https://ssm.eu-west-2.amazonaws.com
+      Events:
+        Search:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /sam/encrypted/details
+            Method: POST
+  UpdateSecureStringFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: updateSecureString/index.updateSecureString
+      Policies:
+      - AmazonSSMFullAccess
+      - KMSDecryptPolicy:
+          KeyId: arn:aws:kms:eu-west-2:833803533771:key/ede4e715-ebfa-434f-b77c-dc0708f5edde
+      - KMSEncryptPolicy:
+          KeyId: arn:aws:kms:eu-west-2:833803533771:key/ede4e715-ebfa-434f-b77c-dc0708f5edde
+
+      Runtime: nodejs14.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          SSM_NAMES: /Project/Service/Names
+          SSM_ENDPOINT: https://ssm.eu-west-2.amazonaws.com
+      Events:
+        Search:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /sam/decrypted/details
+            Method: POST
+  SimpleParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: '/Project/Service/Names'
+      Description: 'Sample dev config values for my app'
+      Type: StringList
+      Value: 'name1, name2'
+  SamKms:
+    Type: "AWS::KMS::Key"
+    Properties:
+      Description: SAM KEY
+      Enabled: true
+      EnableKeyRotation: true
+      MultiRegion: false
+      KeySpec: SYMMETRIC_DEFAULT
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: "sam-ssm-key"
+        Statement:
+          - Sid: "Enable IAM User Permissions"
+            Effect: "Allow"
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+                # Fn::Join:
+                #   - ""
+                #   -
+                #     - "arn:aws:iam::"
+                #     - Ref: "AWS::AccountId"
+                #     - ":root"
+            Action: "kms:*"
+            Resource: "*"
+        
+    # Type: AWS::KMS::Key
+    # Properties:
+    #   Description: SAM KEY
+    #   Enabled: true
+    #   EnableKeyRotation: false
+    #   KeyPolicy: 
+    #     Version: "2012-10-17"
+    #     Id: "sam-ssm-key"
+    #     Statement:
+    #       - Sid": Allow access through SSM for all principals in the account that are authorized to use SSM
+    #         Effect": Allow
+    #         Principal":
+    #           AWS: "*"
+    #         Action":
+    #           - "kms:Encrypt"
+    #           - "kms:Decrypt"
+    #           - "kms:ReEncrypt*"
+    #           - "kms:GenerateDataKey*"
+    #           - "kms:CreateGrant"
+    #           - "kms:DescribeKey"
+    #         Resource": "*"
+          # - Sid": "Allow direct access to key metadata to the account"
+          #   Effect: "Allow"
+          #   Principal:
+          #     AWS": "*"
+          #   Action:
+          #     - "kms:Describe*"
+          #     - "kms:Get*"
+          #     - "kms:List*"
+          #     - "kms:RevokeGrant"
+          #     - "kms:CancelKeyDeletion"
+            # Resource: "*"
+      # KeySpec: SYMMETRIC_DEFAULT
+      # KeyUsage: ENCRYPT_DECRYPT
+      # MultiRegion: false
